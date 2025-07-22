@@ -3,7 +3,7 @@ name="infra-backup-operator"
 version = "0.0.0"
 description = "Charmed Operator for Backup Kubernetes Cluster Infrastructure"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.12"
 dependencies = [
     "lightkube>=0.17.2",
     "ops>=3.0.0",
