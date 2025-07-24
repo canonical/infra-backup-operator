@@ -7,12 +7,14 @@
 import logging
 
 import ops
-from k8s_utils import K8s
-from charms.velero_libs.v0.velero_backup_config import VeleroBackupRequirer,VeleroBackupSpec
+from charms.velero_libs.v0.velero_backup_config import VeleroBackupRequirer, VeleroBackupSpec
+
+from k8s_utils import K8sUtils
 
 logger = logging.getLogger(__name__)
 
 INFRA_NAMESPACES = {"kube-system", "kube-public", "metallb-system"}
+CLUSTER_INFRA_BACKUP = "cluster-infra-backup"
 
 
 class InfraBackupOperatorCharm(ops.CharmBase):
@@ -21,28 +23,41 @@ class InfraBackupOperatorCharm(ops.CharmBase):
     def __init__(self, framework: ops.Framework) -> None:
         """Initialise the Infra Backup charm."""
         super().__init__(framework)
-        self.k8s = K8s()
+        self.k8s_utils = K8sUtils()
 
-    def _set_backup(self):
-        """Set the backup configuration for velero."""
-        self._set_cluster_infra_backup()
+        self.framework.observe(self.on.install, self._on_update_status)
+        self.framework.observe(self.on.update_status, self._on_update_status)
+        self.framework.observe(self.on.upgrade_charm, self._on_update_status)
 
-    def _set_cluster_infra_backup(self):
-        """Set the cluster infra backup.
-
-        This function sets the right configuration to backup all resources in the INFRA_NAMESPACES
-        and also all cluster scoped resources (e.g., CRDs, CSRs, ClusterRoles and etc.)
-        """
-        infra_namespaces = list(self.k8s.get_namespaces().intersection(INFRA_NAMESPACES))
-        self.user_workload_backup = VeleroBackupRequirer(
+        self.cluster_infra_backup = VeleroBackupRequirer(
             self,
-            app="infra-backup",
-            endpoint="cluster-infra-backup",
+            app_name="infra-backup",
+            relation_name=CLUSTER_INFRA_BACKUP,
             spec=VeleroBackupSpec(
-                include_namespaces=infra_namespaces,
-                include_cluster_resources=True
-            )
+                include_namespaces=self._get_ns_infra_back_up(), include_cluster_resources=True
+            ),
         )
+
+    def _on_update_status(self, _: ops.EventBase) -> None:
+        """Update the charm's status."""
+        issues = []
+        if not self.k8s_utils.has_enough_permission():
+            issues.append("Missing '--trust': insufficient permissions")
+
+        if not self._cluster_infra_backup_exist():
+            issues.append(f"Missing relation: [{CLUSTER_INFRA_BACKUP}]")
+
+        if issues:
+            self.model.unit.status = ops.BlockedStatus("; ".join(issues))
+        else:
+            self.model.unit.status = ops.ActiveStatus("Ready")
+
+    def _cluster_infra_backup_exist(self) -> bool:
+        return bool(self.model.relations.get(CLUSTER_INFRA_BACKUP))
+
+    def _get_ns_infra_back_up(self):
+        """Get the namespaces for cluster-infra-backup endpoint."""
+        return list(self.k8s_utils.get_namespaces().intersection(INFRA_NAMESPACES))
 
 
 if __name__ == "__main__":  # pragma: nocover
