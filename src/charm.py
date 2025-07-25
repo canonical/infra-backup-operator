@@ -28,6 +28,9 @@ class InfraBackupOperatorCharm(ops.CharmBase):
         self.framework.observe(self.on.install, self._on_update_status)
         self.framework.observe(self.on.update_status, self._on_update_status)
         self.framework.observe(self.on.upgrade_charm, self._on_update_status)
+        self.framework.observe(
+            self.on[CLUSTER_INFRA_BACKUP].relation_joined, self._on_update_status
+        )
 
         self.cluster_infra_backup = VeleroBackupRequirer(
             self,
@@ -53,11 +56,14 @@ class InfraBackupOperatorCharm(ops.CharmBase):
             self.model.unit.status = ops.ActiveStatus("Ready")
 
     def _cluster_infra_backup_exist(self) -> bool:
+        """Check if the relation for infra backup exists."""
         return bool(self.model.relations.get(CLUSTER_INFRA_BACKUP))
 
-    def _get_ns_infra_back_up(self):
-        """Get the namespaces for cluster-infra-backup endpoint."""
-        return list(self.k8s_utils.get_namespaces().intersection(INFRA_NAMESPACES))
+    def _get_ns_infra_back_up(self) -> list[str]:
+        """Return sorted list of infra-related namespaces present in the cluster."""
+        namespaces = self.k8s_utils.get_namespaces()
+        infra_namespaces = sorted(namespaces & INFRA_NAMESPACES)
+        return infra_namespaces
 
 
 if __name__ == "__main__":  # pragma: nocover

@@ -4,13 +4,14 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from ops import testing
+from pytest_mock import MockerFixture
 from scenario import Relation
 
 from charm import CLUSTER_INFRA_BACKUP, InfraBackupOperatorCharm
 
 
 @pytest.fixture(autouse=True)
-def mock_k8s_utils():
+def mock_k8s_utils() -> MagicMock:  # type: ignore[misc]
     with patch("charm.K8sUtils") as mock_k8s_utils:
         mock_instance = MagicMock()
         mock_k8s_utils.return_value = mock_instance
@@ -18,11 +19,13 @@ def mock_k8s_utils():
 
 
 @pytest.fixture(autouse=True)
-def charm_state():
+def charm_state() -> testing.State:  # type: ignore[misc]
     yield testing.State(leader=True)
 
 
-def test_on_update_status_missing_permission(mock_k8s_utils, charm_state, mocker):
+def test_on_update_status_missing_permission(
+    mock_k8s_utils: MagicMock, charm_state: testing.State, mocker: MockerFixture
+) -> None:
     mocker.patch("charm.InfraBackupOperatorCharm._cluster_infra_backup_exist", return_value=True)
     mock_k8s_utils.has_enough_permission.return_value = False
     ctx = testing.Context(InfraBackupOperatorCharm)
@@ -54,8 +57,13 @@ def test_on_update_status_missing_permission(mock_k8s_utils, charm_state, mocker
     ],
 )
 def test_on_update_status_block(
-    mock_k8s_utils, charm_state, mocker, cluster_infra_backup_set, permission, msg
-):
+    mock_k8s_utils: MagicMock,
+    charm_state: testing.State,
+    mocker: MockerFixture,
+    cluster_infra_backup_set: bool,
+    permission: bool,
+    msg: str,
+) -> None:
     mocker.patch(
         "charm.InfraBackupOperatorCharm._cluster_infra_backup_exist",
         return_value=cluster_infra_backup_set,
@@ -67,7 +75,9 @@ def test_on_update_status_block(
     assert state_out.unit_status == testing.BlockedStatus(msg)
 
 
-def test_on_update_status_active(mock_k8s_utils, charm_state, mocker):
+def test_on_update_status_active(
+    mock_k8s_utils: MagicMock, charm_state: testing.State, mocker: MockerFixture
+) -> None:
     mocker.patch(
         "charm.InfraBackupOperatorCharm._cluster_infra_backup_exist",
         return_value=True,
@@ -102,7 +112,7 @@ def test_on_update_status_active(mock_k8s_utils, charm_state, mocker):
         "With cluster-infra-backup relation returns True",
     ],
 )
-def test_cluster_infra_backup_exist_true(testing_state, expected):
+def test_cluster_infra_backup_exist_true(testing_state: testing.State, expected: bool) -> None:
     ctx = testing.Context(InfraBackupOperatorCharm)
     with ctx(ctx.on.start(), testing_state) as manager:
         cluster_infra_backup = manager.charm._cluster_infra_backup_exist()

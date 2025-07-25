@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 class K8sUtils:
     """K8s utils information using lightkube."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.client = Client(field_manager="infra-backup-operator")
 
     def has_enough_permission(self) -> bool:

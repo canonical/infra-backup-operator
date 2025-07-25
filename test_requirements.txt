@@ -1,7 +1,0 @@
-ops
-juju
-pydantic
-lightkube
-pytest
-pytest-asyncio
-pytest-operator

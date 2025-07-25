@@ -9,7 +9,7 @@ from k8s_utils import ApiError, K8sUtils
 
 
 @pytest.fixture(autouse=True)
-def mock_lightkube_client():
+def mock_lightkube_client() -> MagicMock:  # type: ignore[misc]
     with patch("k8s_utils.Client") as mock_client_cls:
         mock_instance = MagicMock()
         mock_client_cls.return_value = mock_instance
@@ -28,19 +28,19 @@ def make_api_error(message: str = "forbidden") -> ApiError:
     return ApiError(request=mock_request, response=mock_response)
 
 
-def test_has_enough_permission_false(mock_lightkube_client):
+def test_has_enough_permission_false(mock_lightkube_client: MagicMock) -> None:
     mock_lightkube_client.list.side_effect = make_api_error()
     utils = K8sUtils()
     assert utils.has_enough_permission() is False
 
 
-def test_has_enough_permission_true(mock_lightkube_client):
+def test_has_enough_permission_true(mock_lightkube_client: MagicMock) -> None:
     mock_lightkube_client.list.return_value = [object()]
     utils = K8sUtils()
     assert utils.has_enough_permission() is True
 
 
-def test_get_namespaces(mock_lightkube_client):
+def test_get_namespaces(mock_lightkube_client: MagicMock) -> None:
     ns1 = MagicMock()
     ns1.metadata.name = "default"
     ns2 = MagicMock()
