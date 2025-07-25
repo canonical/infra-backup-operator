@@ -25,11 +25,11 @@ class InfraBackupOperatorCharm(ops.CharmBase):
         super().__init__(framework)
         self.k8s_utils = K8sUtils()
 
-        self.framework.observe(self.on.install, self._on_update_status)
-        self.framework.observe(self.on.update_status, self._on_update_status)
-        self.framework.observe(self.on.upgrade_charm, self._on_update_status)
+        self.framework.observe(self.on.install, self._assess_cluster_backup_state)
+        self.framework.observe(self.on.update_status, self._assess_cluster_backup_state)
+        self.framework.observe(self.on.upgrade_charm, self._assess_cluster_backup_state)
         self.framework.observe(
-            self.on[CLUSTER_INFRA_BACKUP].relation_joined, self._on_update_status
+            self.on[CLUSTER_INFRA_BACKUP].relation_joined, self._assess_cluster_backup_state
         )
 
         self.cluster_infra_backup = VeleroBackupRequirer(
@@ -41,7 +41,7 @@ class InfraBackupOperatorCharm(ops.CharmBase):
             ),
         )
 
-    def _on_update_status(self, _: ops.EventBase) -> None:
+    def _assess_cluster_backup_state(self, _: ops.EventBase) -> None:
         """Update the charm's status."""
         issues = []
         if not self.k8s_utils.has_enough_permission():

@@ -23,7 +23,7 @@ def charm_state() -> testing.State:  # type: ignore[misc]
     yield testing.State(leader=True)
 
 
-def test_on_update_status_missing_permission(
+def test_assess_cluster_backup_state_missing_permission(
     mock_k8s_utils: MagicMock, charm_state: testing.State, mocker: MockerFixture
 ) -> None:
     mocker.patch("charm.InfraBackupOperatorCharm._cluster_infra_backup_exist", return_value=True)
@@ -56,7 +56,7 @@ def test_on_update_status_missing_permission(
         "Block message collects more than one issue",
     ],
 )
-def test_on_update_status_block(
+def test_assess_cluster_backup_state_block(
     mock_k8s_utils: MagicMock,
     charm_state: testing.State,
     mocker: MockerFixture,
@@ -75,7 +75,7 @@ def test_on_update_status_block(
     assert state_out.unit_status == testing.BlockedStatus(msg)
 
 
-def test_on_update_status_active(
+def test_assess_cluster_backup_state_active(
     mock_k8s_utils: MagicMock, charm_state: testing.State, mocker: MockerFixture
 ) -> None:
     mocker.patch(

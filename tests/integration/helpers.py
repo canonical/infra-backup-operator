@@ -12,7 +12,7 @@ VELERO_CHARM = "velero-operator"
 VELERO_ENDPOINT = "velero-backups"
 
 EXPECTED_CLUSTER_INFRA_BACKUP_DATA_BAG = {
-    "include_namespaces": ["kube-public""kube-system"],
+    "include_namespaces": ["kube-public", "kube-system"],
     "include_resources": None,
     "exclude_namespaces": None,
     "exclude_resources": None,
