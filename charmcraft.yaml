@@ -30,6 +30,8 @@ parts:
       - libffi-dev
       - libssl-dev
       - pkg-config
+    build-snaps:
+      - astral-uv
 
 requires:
   cluster-infra-backup:
