@@ -32,13 +32,21 @@ class InfraBackupOperatorCharm(ops.CharmBase):
             self.on[CLUSTER_INFRA_BACKUP].relation_joined, self._assess_cluster_backup_state
         )
 
+        # Persistent Volumes are not backed up because it is workload related and applications
+        # should be responsible for configuring the backup.
+
+        # Pods are ephemeral and are automatically recreated by higher-level controllers
+        # e.g: Deployments, StatefulSets, and DaemonSets.
         self.cluster_infra_backup = VeleroBackupRequirer(
             self,
             app_name="infra-backup",
             relation_name=CLUSTER_INFRA_BACKUP,
             spec=VeleroBackupSpec(
-                include_namespaces=self._get_ns_infra_back_up(), include_cluster_resources=True
+                include_namespaces=self._get_ns_infra_back_up(),
+                exclude_resources=["persistentvolumes", "pods"],
+                include_cluster_resources=True,
             ),
+            refresh_event=[self.on.update_status],
         )
 
     def _assess_cluster_backup_state(self, _: ops.EventBase) -> None:
