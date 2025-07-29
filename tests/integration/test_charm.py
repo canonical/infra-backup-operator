@@ -14,12 +14,13 @@ from helpers import (
     create_namespace,
     delete_namespace,
     get_expected_infra_backup_data_bag,
+    get_expected_namespaced_infra_backup_data_bag,
     get_velero_spec,
     wait_for_backup_spec,
 )
 from pytest_jubilant import pack
 
-from charm import CLUSTER_INFRA_BACKUP
+from charm import CLUSTER_INFRA_BACKUP, NAMESPACED_INFRA_BACKUP
 
 logger = logging.getLogger(__name__)
 
@@ -47,8 +48,13 @@ def test_build_deploy_charm(juju: jubilant.Juju) -> None:
 def test_relate_and_trust(juju: jubilant.Juju) -> None:
     logger.info("Setting trust to infra-backup")
     juju.cli("trust", APP_NAME, "--scope=cluster")
-    logger.info("Setting cluster-infra-backup relation with Velero")
+
+    logger.info("Setting %s relation with Velero", CLUSTER_INFRA_BACKUP)
     juju.integrate(f"{APP_NAME}:{CLUSTER_INFRA_BACKUP}", f"{VELERO_CHARM}")
+
+    logger.info("Setting %s relation with Velero", NAMESPACED_INFRA_BACKUP)
+    juju.integrate(f"{APP_NAME}:{NAMESPACED_INFRA_BACKUP}", f"{VELERO_CHARM}")
+
     juju.wait(lambda status: jubilant.all_active(status, APP_NAME))
     logger.info("Infra Backup Operator ready")
 
@@ -59,7 +65,8 @@ def test_infra_backup_relation(juju: jubilant.Juju) -> None:
     create_namespace("metallb-system")
     with fast_forward(juju):
         wait_for_backup_spec(
-            lambda: get_velero_spec(juju), get_expected_infra_backup_data_bag(["metallb-system"])
+            lambda: get_velero_spec(juju, CLUSTER_INFRA_BACKUP),
+            get_expected_infra_backup_data_bag(["metallb-system"]),
         )
 
 
@@ -68,4 +75,16 @@ def test_infra_backup_relation_update(juju: jubilant.Juju) -> None:
     """metallb-system ns is not included in the backup if doesn't exist."""
     delete_namespace("metallb-system")
     with fast_forward(juju):
-        wait_for_backup_spec(lambda: get_velero_spec(juju), get_expected_infra_backup_data_bag())
+        wait_for_backup_spec(
+            lambda: get_velero_spec(juju, CLUSTER_INFRA_BACKUP),
+            get_expected_infra_backup_data_bag(),
+        )
+
+
+@pytest.mark.setup
+def test_namespaced_infra_backup_relation(juju: jubilant.Juju) -> None:
+    """Test if the namespaced-infra-backup has the expected content."""
+    wait_for_backup_spec(
+        lambda: get_velero_spec(juju, NAMESPACED_INFRA_BACKUP),
+        get_expected_namespaced_infra_backup_data_bag(),
+    )

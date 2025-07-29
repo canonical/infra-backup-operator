@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 
 INFRA_NAMESPACES = {"kube-system", "kube-public", "metallb-system"}
 CLUSTER_INFRA_BACKUP = "cluster-infra-backup"
+NAMESPACED_INFRA_BACKUP = "namespaced-infra-backup"
 
 
 class InfraBackupOperatorCharm(ops.CharmBase):
@@ -49,23 +50,51 @@ class InfraBackupOperatorCharm(ops.CharmBase):
             refresh_event=[self.on.update_status],
         )
 
+        self.namespaced_infra_backup = VeleroBackupRequirer(
+            self,
+            app_name="infra-backup",
+            relation_name=NAMESPACED_INFRA_BACKUP,
+            spec=VeleroBackupSpec(
+                include_resources=[
+                    "roles",
+                    "rolebindings",
+                    "networkpolicies",
+                    "resourcequotas",
+                    "limitranges",
+                    "serviceaccounts",
+                    "gateways",
+                    "grpcroutes",
+                    "httproutes",
+                    "tlsroutes",
+                    "ingresses",
+                    "configmaps",
+                    "secrets",
+                    "cronjobs",
+                    "jobs",
+                    "horizontalpodautoscalers",
+                    "verticalpodautoscalers",
+                ],
+            ),
+        )
+
     def _assess_cluster_backup_state(self, _: ops.EventBase) -> None:
         """Update the charm's status."""
         issues = []
         if not self.k8s_utils.has_enough_permission():
             issues.append("Missing '--trust': insufficient permissions")
 
-        if not self._cluster_infra_backup_exist():
-            issues.append(f"Missing relation: [{CLUSTER_INFRA_BACKUP}]")
+        for relation in [CLUSTER_INFRA_BACKUP, NAMESPACED_INFRA_BACKUP]:
+            if not self._relation_exist(relation):
+                issues.append(f"Missing relation: [{relation}]")
 
         if issues:
             self.model.unit.status = ops.BlockedStatus("; ".join(issues))
         else:
             self.model.unit.status = ops.ActiveStatus("Ready")
 
-    def _cluster_infra_backup_exist(self) -> bool:
-        """Check if the relation for infra backup exists."""
-        return bool(self.model.relations.get(CLUSTER_INFRA_BACKUP))
+    def _relation_exist(self, relation: str) -> bool:
+        """Check if the relation exists."""
+        return bool(self.model.relations.get(relation))
 
     def _get_ns_infra_back_up(self) -> list[str]:
         """Return sorted list of infra-related namespaces present in the cluster."""

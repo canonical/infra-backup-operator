@@ -7,7 +7,7 @@ from ops import testing
 from pytest_mock import MockerFixture
 from scenario import Relation
 
-from charm import CLUSTER_INFRA_BACKUP, InfraBackupOperatorCharm
+from charm import CLUSTER_INFRA_BACKUP, NAMESPACED_INFRA_BACKUP, InfraBackupOperatorCharm
 
 
 @pytest.fixture(autouse=True)
@@ -26,7 +26,7 @@ def charm_state() -> testing.State:  # type: ignore[misc]
 def test_assess_cluster_backup_state_missing_permission(
     mock_k8s_utils: MagicMock, charm_state: testing.State, mocker: MockerFixture
 ) -> None:
-    mocker.patch("charm.InfraBackupOperatorCharm._cluster_infra_backup_exist", return_value=True)
+    mocker.patch("charm.InfraBackupOperatorCharm._relation_exist", return_value=True)
     mock_k8s_utils.has_enough_permission.return_value = False
     ctx = testing.Context(InfraBackupOperatorCharm)
 
@@ -37,49 +37,63 @@ def test_assess_cluster_backup_state_missing_permission(
 
 
 @pytest.mark.parametrize(
-    "cluster_infra_backup_set, permission, msg",
+    "relations_exist, permission, expected_msg",
     [
-        (True, False, "Missing '--trust': insufficient permissions"),
-        (False, True, f"Missing relation: [{CLUSTER_INFRA_BACKUP}]"),
+        # Only missing trust
+        ([True, True], False, "Missing '--trust': insufficient permissions"),
+        # Only one relation missing
+        ([False, True], True, f"Missing relation: [{CLUSTER_INFRA_BACKUP}]"),
+        ([True, False], True, f"Missing relation: [{NAMESPACED_INFRA_BACKUP}]"),
+        # Both relations missing
         (
+            [False, False],
+            True,
+            f"Missing relation: [{CLUSTER_INFRA_BACKUP}]; "
+            f"Missing relation: [{NAMESPACED_INFRA_BACKUP}]",
+        ),
+        # Missing both trust and relations
+        (
+            [False, False],
             False,
-            False,
-            (
-                "Missing '--trust': insufficient permissions; "
-                f"Missing relation: [{CLUSTER_INFRA_BACKUP}]"
-            ),
+            "Missing '--trust': insufficient permissions; "
+            f"Missing relation: [{CLUSTER_INFRA_BACKUP}]; "
+            f"Missing relation: [{NAMESPACED_INFRA_BACKUP}]",
         ),
     ],
     ids=[
-        "Deploying without --trust blocks the charm",
-        "Not relating cluster-infra-backup ep blocks the charm",
-        "Block message collects more than one issue",
+        "Missing only trust",
+        "Missing cluster-infra relation",
+        "Missing namespaced-infra relation",
+        "Missing both relations",
+        "Missing trust and both relations",
     ],
 )
 def test_assess_cluster_backup_state_block(
     mock_k8s_utils: MagicMock,
     charm_state: testing.State,
     mocker: MockerFixture,
-    cluster_infra_backup_set: bool,
+    relations_exist: list[bool],
     permission: bool,
-    msg: str,
+    expected_msg: str,
 ) -> None:
     mocker.patch(
-        "charm.InfraBackupOperatorCharm._cluster_infra_backup_exist",
-        return_value=cluster_infra_backup_set,
+        "charm.InfraBackupOperatorCharm._relation_exist",
+        side_effect=relations_exist,
     )
-    mock_k8s_utils.has_enough_permission.return_value = permission
-    ctx = testing.Context(InfraBackupOperatorCharm)
 
+    mock_k8s_utils.has_enough_permission.return_value = permission
+
+    ctx = testing.Context(InfraBackupOperatorCharm)
     state_out = ctx.run(ctx.on.update_status(), charm_state)
-    assert state_out.unit_status == testing.BlockedStatus(msg)
+
+    assert state_out.unit_status == testing.BlockedStatus(expected_msg)
 
 
 def test_assess_cluster_backup_state_active(
     mock_k8s_utils: MagicMock, charm_state: testing.State, mocker: MockerFixture
 ) -> None:
     mocker.patch(
-        "charm.InfraBackupOperatorCharm._cluster_infra_backup_exist",
+        "charm.InfraBackupOperatorCharm._relation_exist",
         return_value=True,
     )
     mock_k8s_utils.has_enough_permission.return_value = True
@@ -90,30 +104,45 @@ def test_assess_cluster_backup_state_active(
 
 
 @pytest.mark.parametrize(
-    "testing_state, expected",
+    "relation_name, testing_state, expected",
     [
-        (testing.State(), False),
+        # No relations
+        (CLUSTER_INFRA_BACKUP, testing.State(), False),
+        (NAMESPACED_INFRA_BACKUP, testing.State(), False),
+        # Only cluster-infra present
         (
-            testing.State(
-                relations=[
-                    Relation(
-                        endpoint=CLUSTER_INFRA_BACKUP,
-                        remote_app_data={
-                            "spec": '{"include_namespaces":["kube-public","kube-system"]'
-                        },
-                    )
-                ]
-            ),
+            CLUSTER_INFRA_BACKUP,
+            testing.State(relations=[Relation(endpoint=CLUSTER_INFRA_BACKUP)]),
+            True,
+        ),
+        (
+            NAMESPACED_INFRA_BACKUP,
+            testing.State(relations=[Relation(endpoint=CLUSTER_INFRA_BACKUP)]),
+            False,
+        ),
+        # Only namespaced-infra present
+        (
+            CLUSTER_INFRA_BACKUP,
+            testing.State(relations=[Relation(endpoint=NAMESPACED_INFRA_BACKUP)]),
+            False,
+        ),
+        (
+            NAMESPACED_INFRA_BACKUP,
+            testing.State(relations=[Relation(endpoint=NAMESPACED_INFRA_BACKUP)]),
             True,
         ),
     ],
     ids=[
-        "Without cluster-infra-backup relation returns False",
-        "With cluster-infra-backup relation returns True",
+        "no-cluster",
+        "no-namespaced",
+        "only-cluster (checking cluster)",
+        "only-cluster (checking namespaced)",
+        "only-namespaced (checking cluster)",
+        "only-namespaced (checking namespaced)",
     ],
 )
-def test_cluster_infra_backup_exist_true(testing_state: testing.State, expected: bool) -> None:
+def test_relation_exist(relation_name: str, testing_state: testing.State, expected: bool) -> None:
     ctx = testing.Context(InfraBackupOperatorCharm)
     with ctx(ctx.on.start(), testing_state) as manager:
-        cluster_infra_backup = manager.charm._cluster_infra_backup_exist()
-    assert cluster_infra_backup is expected
+        result = manager.charm._relation_exist(relation_name)
+    assert result is expected
