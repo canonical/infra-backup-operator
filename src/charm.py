@@ -10,11 +10,9 @@ import ops
 from charms.velero_libs.v0.velero_backup_config import VeleroBackupRequirer, VeleroBackupSpec
 
 from k8s_utils import K8sUtils
+from literals import CLUSTER_INFRA_BACKUP, INFRA_NAMESPACES
 
 logger = logging.getLogger(__name__)
-
-INFRA_NAMESPACES = {"kube-system", "kube-public", "metallb-system"}
-CLUSTER_INFRA_BACKUP = "cluster-infra-backup"
 
 
 class InfraBackupOperatorCharm(ops.CharmBase):

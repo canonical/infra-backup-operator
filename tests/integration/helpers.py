@@ -5,21 +5,16 @@
 import json
 import logging
 import pprint
-from pathlib import Path
 from typing import Any, Callable, Optional
 
 import yaml
+from literals import VELERO_CHARM, VELERO_ENDPOINT
 from jubilant import Juju
 from kubernetes import client, config
 from kubernetes.client.exceptions import ApiException
 from tenacity import retry, retry_if_exception_type, stop_after_delay, wait_fixed
 
 logger = logging.getLogger(__name__)
-
-CHARM_METADATA = yaml.safe_load(Path("./charmcraft.yaml").read_text())
-APP_NAME = CHARM_METADATA["name"]
-VELERO_CHARM = "velero-operator"
-VELERO_ENDPOINT = "velero-backups"
 
 
 def create_namespace(name: str) -> None:

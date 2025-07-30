@@ -9,17 +9,16 @@ from typing import Iterator
 import jubilant
 import pytest
 from helpers import (
-    APP_NAME,
-    VELERO_CHARM,
     create_namespace,
     delete_namespace,
     get_expected_infra_backup_data_bag,
     get_velero_spec,
     wait_for_backup_spec,
 )
+from literals import APP_NAME, VELERO_CHARM
 from pytest_jubilant import pack
 
-from charm import CLUSTER_INFRA_BACKUP
+from src.literals import CLUSTER_INFRA_BACKUP
 
 logger = logging.getLogger(__name__)
 

@@ -7,7 +7,8 @@ from ops import testing
 from pytest_mock import MockerFixture
 from scenario import Relation
 
-from charm import CLUSTER_INFRA_BACKUP, InfraBackupOperatorCharm
+from charm import InfraBackupOperatorCharm
+from literals import CLUSTER_INFRA_BACKUP
 
 
 @pytest.fixture(autouse=True)
