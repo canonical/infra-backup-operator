@@ -33,6 +33,15 @@ parts:
     build-snaps:
       - astral-uv
 
+config:
+  options:
+    namespaces:
+      description: |
+          Comma separated values of namespaces to backup for the infrastructure. If the namespace,
+          doesn't exist in the cluster it will be ignored to backup.
+      default: kube-system, kube-public, metallb-system
+      type: string
+
 requires:
   cluster-infra-backup:
     interface: velero_backup_config

@@ -9,8 +9,8 @@ import logging
 import ops
 from charms.velero_libs.v0.velero_backup_config import VeleroBackupRequirer, VeleroBackupSpec
 
-from k8s_utils import K8sUtils
-from literals import CLUSTER_INFRA_BACKUP, INFRA_NAMESPACES
+from k8s_utils import K8sUtils, K8sUtilsError
+from literals import CLUSTER_INFRA_BACKUP, InfraBackupConfig
 
 logger = logging.getLogger(__name__)
 
@@ -21,45 +21,69 @@ class InfraBackupOperatorCharm(ops.CharmBase):
     def __init__(self, framework: ops.Framework) -> None:
         """Initialise the Infra Backup charm."""
         super().__init__(framework)
-        self.k8s_utils = K8sUtils()
+        self.k8s_utils = K8sUtils(self.unit.app.name)
 
         self.framework.observe(self.on.install, self._assess_cluster_backup_state)
+        self.framework.observe(self.on.config_changed, self._assess_cluster_backup_state)
         self.framework.observe(self.on.update_status, self._assess_cluster_backup_state)
         self.framework.observe(self.on.upgrade_charm, self._assess_cluster_backup_state)
         self.framework.observe(
             self.on[CLUSTER_INFRA_BACKUP].relation_joined, self._assess_cluster_backup_state
         )
-
-        # Persistent Volumes are not backed up because it is workload related and applications
-        # should be responsible for configuring the backup.
-
-        # Pods are ephemeral and are automatically recreated by higher-level controllers
-        # e.g: Deployments, StatefulSets, and DaemonSets.
-        self.cluster_infra_backup = VeleroBackupRequirer(
-            self,
-            app_name="infra-backup",
-            relation_name=CLUSTER_INFRA_BACKUP,
-            spec=VeleroBackupSpec(
-                include_namespaces=self._get_ns_infra_back_up(),
-                exclude_resources=["persistentvolumes", "pods"],
-                include_cluster_resources=True,
-            ),
-            refresh_event=[self.on.update_status],
+        self.framework.observe(
+            self.on[CLUSTER_INFRA_BACKUP].relation_broken, self._assess_cluster_backup_state
         )
+
+        self._setup_cluster_infra_backup()
 
     def _assess_cluster_backup_state(self, _: ops.EventBase) -> None:
         """Update the charm's status."""
         issues = []
-        if not self.k8s_utils.has_enough_permission():
-            issues.append("Missing '--trust': insufficient permissions")
+
+        try:
+            self.k8s_utils.get_namespaces()
+        except K8sUtilsError:
+            self.model.unit.status = ops.WaitingStatus("Trying to get namespaces...")
+            return
+
+        try:
+            self.load_config(InfraBackupConfig)
+        except ValueError as e:
+            self.unit.status = ops.BlockedStatus(str(e))
+            return
 
         if not self._cluster_infra_backup_exist():
             issues.append(f"Missing relation: [{CLUSTER_INFRA_BACKUP}]")
 
         if issues:
             self.model.unit.status = ops.BlockedStatus("; ".join(issues))
+
         else:
             self.model.unit.status = ops.ActiveStatus("Ready")
+
+    def _setup_cluster_infra_backup(self) -> None:
+        """Set up the relation for cluster-infra-backup.
+
+        Persistent Volumes are not backed up because it is workload related and applications
+        should be responsible for configuring the backup.
+
+        Pods are ephemeral and are automatically recreated by higher-level controllers
+        e.g: Deployments, StatefulSets, and DaemonSets.
+        """
+        try:
+            self.cluster_infra_backup = VeleroBackupRequirer(
+                self,
+                app_name=self.unit.app.name,
+                relation_name=CLUSTER_INFRA_BACKUP,
+                spec=VeleroBackupSpec(
+                    include_namespaces=self._get_ns_infra_back_up(),
+                    exclude_resources=["persistentvolumes", "pods"],
+                    include_cluster_resources=True,
+                ),
+                refresh_event=[self.on.update_status, self.on.config_changed],
+            )
+        except (K8sUtilsError, ValueError) as e:
+            logger.error("Failed to set the cluster-infra-backup relation: %s", e)
 
     def _cluster_infra_backup_exist(self) -> bool:
         """Check if the relation for infra backup exists."""
@@ -67,8 +91,9 @@ class InfraBackupOperatorCharm(ops.CharmBase):
 
     def _get_ns_infra_back_up(self) -> list[str]:
         """Return sorted list of infra-related namespaces present in the cluster."""
-        namespaces = self.k8s_utils.get_namespaces()
-        infra_namespaces = sorted(namespaces & INFRA_NAMESPACES)
+        config = self.load_config(InfraBackupConfig)
+        cluster_namespaces = self.k8s_utils.get_namespaces()
+        infra_namespaces = sorted(cluster_namespaces & config.backup_namespaces)
         return infra_namespaces
 
 

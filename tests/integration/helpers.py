@@ -8,11 +8,12 @@ import pprint
 from typing import Any, Callable, Optional
 
 import yaml
-from literals import VELERO_CHARM, VELERO_ENDPOINT
 from jubilant import Juju
 from kubernetes import client, config
 from kubernetes.client.exceptions import ApiException
 from tenacity import retry, retry_if_exception_type, stop_after_delay, wait_fixed
+
+from literals import VELERO_CHARM, VELERO_ENDPOINT
 
 logger = logging.getLogger(__name__)
 

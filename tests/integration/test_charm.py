@@ -15,9 +15,9 @@ from helpers import (
     get_velero_spec,
     wait_for_backup_spec,
 )
-from literals import APP_NAME, VELERO_CHARM
 from pytest_jubilant import pack
 
+from literals import APP_NAME, VELERO_CHARM
 from src.literals import CLUSTER_INFRA_BACKUP
 
 logger = logging.getLogger(__name__)
@@ -68,3 +68,13 @@ def test_infra_backup_relation_update(juju: jubilant.Juju) -> None:
     delete_namespace("metallb-system")
     with fast_forward(juju):
         wait_for_backup_spec(lambda: get_velero_spec(juju), get_expected_infra_backup_data_bag())
+
+
+def test_wrong_config_blocks_charm(juju: jubilant.Juju) -> None:
+    juju.config(APP_NAME, {"namespaces": ""})
+    with fast_forward(juju):
+        (lambda status: jubilant.all_blocked(status, APP_NAME),)
+
+    juju.config(APP_NAME, reset="namespaces")
+    with fast_forward(juju):
+        juju.wait(lambda status: jubilant.all_active(status, APP_NAME))

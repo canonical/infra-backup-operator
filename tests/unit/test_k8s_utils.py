@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch
 import httpx
 import pytest
 
-from k8s_utils import ApiError, K8sUtils
+from k8s_utils import ApiError, K8sUtils, K8sUtilsError
 
 
 @pytest.fixture(autouse=True)
@@ -28,16 +28,16 @@ def make_api_error(message: str = "forbidden") -> ApiError:
     return ApiError(request=mock_request, response=mock_response)
 
 
-def test_has_enough_permission_false(mock_lightkube_client: MagicMock) -> None:
-    mock_lightkube_client.list.side_effect = make_api_error()
-    utils = K8sUtils()
-    assert utils.has_enough_permission() is False
+# def test_has_enough_permission_false(mock_lightkube_client: MagicMock) -> None:
+#     mock_lightkube_client.list.side_effect = make_api_error()
+#     utils = K8sUtils()
+#     assert utils.has_enough_permission() is False
 
 
-def test_has_enough_permission_true(mock_lightkube_client: MagicMock) -> None:
-    mock_lightkube_client.list.return_value = [object()]
-    utils = K8sUtils()
-    assert utils.has_enough_permission() is True
+# def test_has_enough_permission_true(mock_lightkube_client: MagicMock) -> None:
+#     mock_lightkube_client.list.return_value = [object()]
+#     utils = K8sUtils()
+#     assert utils.has_enough_permission() is True
 
 
 def test_get_namespaces(mock_lightkube_client: MagicMock) -> None:
@@ -47,6 +47,13 @@ def test_get_namespaces(mock_lightkube_client: MagicMock) -> None:
     ns2.metadata.name = "kube-system"
 
     mock_lightkube_client.list.return_value = [ns1, ns2]
-    utils = K8sUtils()
+    utils = K8sUtils("infra-backup-operator")
 
     assert utils.get_namespaces() == {"default", "kube-system"}
+
+
+def test_get_namespaces_error(mock_lightkube_client: MagicMock):
+    mock_lightkube_client.list.side_effect = make_api_error()
+    utils = K8sUtils("infra-backup-operator")
+    with pytest.raises(K8sUtilsError):
+        utils.get_namespaces()

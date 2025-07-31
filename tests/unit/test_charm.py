@@ -7,7 +7,7 @@ from ops import testing
 from pytest_mock import MockerFixture
 from scenario import Relation
 
-from charm import InfraBackupOperatorCharm
+from charm import InfraBackupOperatorCharm, K8sUtilsError
 from literals import CLUSTER_INFRA_BACKUP
 
 
@@ -24,52 +24,25 @@ def charm_state() -> testing.State:  # type: ignore[misc]
     yield testing.State(leader=True)
 
 
-def test_assess_cluster_backup_state_missing_permission(
-    mock_k8s_utils: MagicMock, charm_state: testing.State, mocker: MockerFixture
-) -> None:
-    mocker.patch("charm.InfraBackupOperatorCharm._cluster_infra_backup_exist", return_value=True)
-    mock_k8s_utils.has_enough_permission.return_value = False
-    ctx = testing.Context(InfraBackupOperatorCharm)
-
-    state_out = ctx.run(ctx.on.update_status(), charm_state)
-    assert state_out.unit_status == testing.BlockedStatus(
-        "Missing '--trust': insufficient permissions"
-    )
-
-
 @pytest.mark.parametrize(
-    "cluster_infra_backup_set, permission, msg",
+    "cluster_infra_backup_set, msg",
     [
-        (True, False, "Missing '--trust': insufficient permissions"),
-        (False, True, f"Missing relation: [{CLUSTER_INFRA_BACKUP}]"),
-        (
-            False,
-            False,
-            (
-                "Missing '--trust': insufficient permissions; "
-                f"Missing relation: [{CLUSTER_INFRA_BACKUP}]"
-            ),
-        ),
+        (False, f"Missing relation: [{CLUSTER_INFRA_BACKUP}]"),
     ],
     ids=[
-        "Deploying without --trust blocks the charm",
         "Not relating cluster-infra-backup ep blocks the charm",
-        "Block message collects more than one issue",
     ],
 )
 def test_assess_cluster_backup_state_block(
-    mock_k8s_utils: MagicMock,
     charm_state: testing.State,
     mocker: MockerFixture,
     cluster_infra_backup_set: bool,
-    permission: bool,
     msg: str,
 ) -> None:
     mocker.patch(
         "charm.InfraBackupOperatorCharm._cluster_infra_backup_exist",
         return_value=cluster_infra_backup_set,
     )
-    mock_k8s_utils.has_enough_permission.return_value = permission
     ctx = testing.Context(InfraBackupOperatorCharm)
 
     state_out = ctx.run(ctx.on.update_status(), charm_state)
@@ -77,17 +50,37 @@ def test_assess_cluster_backup_state_block(
 
 
 def test_assess_cluster_backup_state_active(
-    mock_k8s_utils: MagicMock, charm_state: testing.State, mocker: MockerFixture
+    charm_state: testing.State, mocker: MockerFixture
 ) -> None:
     mocker.patch(
         "charm.InfraBackupOperatorCharm._cluster_infra_backup_exist",
         return_value=True,
     )
-    mock_k8s_utils.has_enough_permission.return_value = True
     ctx = testing.Context(InfraBackupOperatorCharm)
 
     state_out = ctx.run(ctx.on.update_status(), charm_state)
     assert state_out.unit_status == testing.ActiveStatus("Ready")
+
+
+def test_assess_cluster_backup_state_waiting_fail_ns(
+    mock_k8s_utils: MagicMock, charm_state: testing.State
+) -> None:
+    mock_k8s_utils.get_namespaces.side_effect = K8sUtilsError("wrong permission")
+    ctx = testing.Context(InfraBackupOperatorCharm)
+    state_out = ctx.run(ctx.on.update_status(), charm_state)
+    assert state_out.unit_status == testing.WaitingStatus("Trying to get namespaces...")
+
+
+def test_assess_cluster_backup_state_block_wrong_config(
+    mocker: MockerFixture, charm_state: testing.State
+):
+    mocker.patch(
+        "charm.InfraBackupOperatorCharm.load_config",
+        side_effect=ValueError("wrong config"),
+    )
+    ctx = testing.Context(InfraBackupOperatorCharm)
+    state_out = ctx.run(ctx.on.update_status(), charm_state)
+    assert state_out.unit_status == testing.BlockedStatus("wrong config")
 
 
 @pytest.mark.parametrize(
@@ -118,3 +111,25 @@ def test_cluster_infra_backup_exist_true(testing_state: testing.State, expected:
     with ctx(ctx.on.start(), testing_state) as manager:
         cluster_infra_backup = manager.charm._cluster_infra_backup_exist()
     assert cluster_infra_backup is expected
+
+
+@pytest.mark.parametrize(
+    "namespaces, exp_msg",
+    [
+        ("", "The namespaces config cannot be empty"),
+        ("-my-namespace", "Invalid namespace name: '-my-namespace'"),
+        ("my-namespace-", "Invalid namespace name: 'my-namespace-'"),
+        ("My-namespace", "Invalid namespace name: 'My-namespace'"),
+    ],
+    ids=[
+        "Empty namespaces",
+        "namespace starting with '-'",
+        "namespace ending with '-'",
+        "namespace starting with capital letter",
+    ],
+)
+def test_wrong_namespace_config(namespaces, exp_msg):
+    ctx = testing.Context(InfraBackupOperatorCharm)
+    state_in = testing.State(config={"namespaces": namespaces})
+    state_out = ctx.run(ctx.on.config_changed(), state_in)
+    assert state_out.unit_status == testing.BlockedStatus(exp_msg)
