@@ -52,7 +52,7 @@ class InfraBackupOperatorCharm(ops.CharmBase):
             self.unit.status = ops.BlockedStatus(str(e))
             return
 
-        if not self._cluster_infra_backup_exist():
+        if not self._relation_exist(CLUSTER_INFRA_BACKUP):
             issues.append(f"Missing relation: [{CLUSTER_INFRA_BACKUP}]")
 
         if issues:
@@ -85,9 +85,9 @@ class InfraBackupOperatorCharm(ops.CharmBase):
         except (K8sUtilsError, ValueError) as e:
             logger.error("Failed to set the cluster-infra-backup relation: %s", e)
 
-    def _cluster_infra_backup_exist(self) -> bool:
-        """Check if the relation for infra backup exists."""
-        return bool(self.model.relations.get(CLUSTER_INFRA_BACKUP))
+    def _relation_exist(self, relation: str) -> bool:
+        """Check if a relation exists."""
+        return bool(self.model.relations.get(relation))
 
     def _get_ns_infra_back_up(self) -> list[str]:
         """Return sorted list of infra-related namespaces present in the cluster."""

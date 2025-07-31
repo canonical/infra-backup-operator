@@ -6,6 +6,8 @@ import re
 from dataclasses import dataclass
 
 CLUSTER_INFRA_BACKUP = "cluster-infra-backup"
+NAMESPACED_INFRA_BACKUP = "namespaced-infra-backup"
+
 
 NAMESPACE_REGEX = re.compile(r"^[a-z0-9]([-a-z0-9]*[a-z0-9])?$")
 

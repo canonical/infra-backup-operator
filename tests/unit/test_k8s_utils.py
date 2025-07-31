@@ -52,7 +52,7 @@ def test_get_namespaces(mock_lightkube_client: MagicMock) -> None:
     assert utils.get_namespaces() == {"default", "kube-system"}
 
 
-def test_get_namespaces_error(mock_lightkube_client: MagicMock):
+def test_get_namespaces_error(mock_lightkube_client: MagicMock) -> None:
     mock_lightkube_client.list.side_effect = make_api_error()
     utils = K8sUtils("infra-backup-operator")
     with pytest.raises(K8sUtilsError):

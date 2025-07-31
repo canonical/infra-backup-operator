@@ -8,7 +8,7 @@ from pytest_mock import MockerFixture
 from scenario import Relation
 
 from charm import InfraBackupOperatorCharm, K8sUtilsError
-from literals import CLUSTER_INFRA_BACKUP
+from literals import CLUSTER_INFRA_BACKUP, NAMESPACED_INFRA_BACKUP
 
 
 @pytest.fixture(autouse=True)
@@ -40,7 +40,7 @@ def test_assess_cluster_backup_state_block(
     msg: str,
 ) -> None:
     mocker.patch(
-        "charm.InfraBackupOperatorCharm._cluster_infra_backup_exist",
+        "charm.InfraBackupOperatorCharm._relation_exist",
         return_value=cluster_infra_backup_set,
     )
     ctx = testing.Context(InfraBackupOperatorCharm)
@@ -53,7 +53,7 @@ def test_assess_cluster_backup_state_active(
     charm_state: testing.State, mocker: MockerFixture
 ) -> None:
     mocker.patch(
-        "charm.InfraBackupOperatorCharm._cluster_infra_backup_exist",
+        "charm.InfraBackupOperatorCharm._relation_exist",
         return_value=True,
     )
     ctx = testing.Context(InfraBackupOperatorCharm)
@@ -73,7 +73,7 @@ def test_assess_cluster_backup_state_waiting_fail_ns(
 
 def test_assess_cluster_backup_state_block_wrong_config(
     mocker: MockerFixture, charm_state: testing.State
-):
+) -> None:
     mocker.patch(
         "charm.InfraBackupOperatorCharm.load_config",
         side_effect=ValueError("wrong config"),
@@ -84,33 +84,23 @@ def test_assess_cluster_backup_state_block_wrong_config(
 
 
 @pytest.mark.parametrize(
-    "testing_state, expected",
+    "relation_name, endpoint, expected",
     [
-        (testing.State(), False),
-        (
-            testing.State(
-                relations=[
-                    Relation(
-                        endpoint=CLUSTER_INFRA_BACKUP,
-                        remote_app_data={
-                            "spec": '{"include_namespaces":["kube-public","kube-system"]'
-                        },
-                    )
-                ]
-            ),
-            True,
-        ),
+        # No relations
+        (CLUSTER_INFRA_BACKUP, None, False),
+        # Only cluster-infra present
+        (CLUSTER_INFRA_BACKUP, CLUSTER_INFRA_BACKUP, True),
+        (CLUSTER_INFRA_BACKUP, NAMESPACED_INFRA_BACKUP, False),
     ],
-    ids=[
-        "Without cluster-infra-backup relation returns False",
-        "With cluster-infra-backup relation returns True",
-    ],
+    ids=["no-cluster", "only-cluster (checking cluster)", "only-namespaced (checking cluster)"],
 )
-def test_cluster_infra_backup_exist_true(testing_state: testing.State, expected: bool) -> None:
+def test_relation_exist(relation_name: str, endpoint: str, expected: bool) -> None:
     ctx = testing.Context(InfraBackupOperatorCharm)
+    testing_state = testing.State(relations=[Relation(endpoint=endpoint)] if endpoint else [])
+
     with ctx(ctx.on.start(), testing_state) as manager:
-        cluster_infra_backup = manager.charm._cluster_infra_backup_exist()
-    assert cluster_infra_backup is expected
+        result = manager.charm._relation_exist(relation_name)
+    assert result is expected
 
 
 @pytest.mark.parametrize(
@@ -128,7 +118,7 @@ def test_cluster_infra_backup_exist_true(testing_state: testing.State, expected:
         "namespace starting with capital letter",
     ],
 )
-def test_wrong_namespace_config(namespaces, exp_msg):
+def test_wrong_namespace_config(namespaces: str, exp_msg: str) -> None:
     ctx = testing.Context(InfraBackupOperatorCharm)
     state_in = testing.State(config={"namespaces": namespaces})
     state_out = ctx.run(ctx.on.config_changed(), state_in)
