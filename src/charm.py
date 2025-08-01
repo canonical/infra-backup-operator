@@ -5,6 +5,7 @@
 """The Infra Backup Charm."""
 
 import logging
+from typing import Optional
 
 import ops
 from charms.velero_libs.v0.velero_backup_config import VeleroBackupRequirer, VeleroBackupSpec
@@ -22,6 +23,8 @@ class InfraBackupOperatorCharm(ops.CharmBase):
         """Initialise the Infra Backup charm."""
         super().__init__(framework)
         self.k8s_utils = K8sUtils(self.unit.app.name)
+        self.setup_failure: Optional[ops.StatusBase] = None
+        self.cluster_infra_backup: Optional[VeleroBackupRequirer] = None
 
         self.framework.observe(self.on.install, self._assess_cluster_backup_state)
         self.framework.observe(self.on.config_changed, self._assess_cluster_backup_state)
@@ -40,16 +43,8 @@ class InfraBackupOperatorCharm(ops.CharmBase):
         """Update the charm's status."""
         issues = []
 
-        try:
-            self.k8s_utils.get_namespaces()
-        except K8sUtilsError:
-            self.model.unit.status = ops.WaitingStatus("Trying to get namespaces...")
-            return
-
-        try:
-            self.load_config(InfraBackupConfig)
-        except ValueError as e:
-            self.unit.status = ops.BlockedStatus(str(e))
+        if self.setup_failure:
+            self.model.unit.status = self.setup_failure
             return
 
         if not self._relation_exist(CLUSTER_INFRA_BACKUP):
@@ -71,30 +66,35 @@ class InfraBackupOperatorCharm(ops.CharmBase):
         e.g: Deployments, StatefulSets, and DaemonSets.
         """
         try:
-            self.cluster_infra_backup = VeleroBackupRequirer(
-                self,
-                app_name=self.unit.app.name,
-                relation_name=CLUSTER_INFRA_BACKUP,
-                spec=VeleroBackupSpec(
-                    include_namespaces=self._get_ns_infra_back_up(),
-                    exclude_resources=["persistentvolumes", "pods"],
-                    include_cluster_resources=True,
-                ),
-                refresh_event=[self.on.update_status, self.on.config_changed],
-            )
-        except (K8sUtilsError, ValueError) as e:
-            logger.error("Failed to set the cluster-infra-backup relation: %s", e)
+            cluster_namespaces = self.k8s_utils.get_namespaces()
+        except K8sUtilsError as e:
+            logger.error("Failed to get the cluster namespaces: %s", e)
+            self.setup_failure = ops.WaitingStatus("Trying to get namespaces...")
+            return
+
+        try:
+            config = self.load_config(InfraBackupConfig)
+        except ValueError as e:
+            logger.error("Invalid charm namespace config: %s", e)
+            self.setup_failure = ops.BlockedStatus(str(e))
+            return
+
+        backup_namespaces = sorted(cluster_namespaces & config.backup_namespaces)
+        self.cluster_infra_backup = VeleroBackupRequirer(
+            self,
+            app_name=self.unit.app.name,
+            relation_name=CLUSTER_INFRA_BACKUP,
+            spec=VeleroBackupSpec(
+                include_namespaces=backup_namespaces,
+                exclude_resources=["persistentvolumes", "pods"],
+                include_cluster_resources=True,
+            ),
+            refresh_event=[self.on.update_status, self.on.config_changed],
+        )
 
     def _relation_exist(self, relation: str) -> bool:
         """Check if a relation exists."""
         return bool(self.model.relations.get(relation))
-
-    def _get_ns_infra_back_up(self) -> list[str]:
-        """Return sorted list of infra-related namespaces present in the cluster."""
-        config = self.load_config(InfraBackupConfig)
-        cluster_namespaces = self.k8s_utils.get_namespaces()
-        infra_namespaces = sorted(cluster_namespaces & config.backup_namespaces)
-        return infra_namespaces
 
 
 if __name__ == "__main__":  # pragma: nocover
