@@ -7,6 +7,25 @@ from dataclasses import dataclass
 
 CLUSTER_INFRA_BACKUP = "cluster-infra-backup"
 NAMESPACED_INFRA_BACKUP = "namespaced-infra-backup"
+RESOURCES_BACKUP = [
+    "roles",
+    "rolebindings",
+    "networkpolicies",
+    "resourcequotas",
+    "limitranges",
+    "serviceaccounts",
+    "gateways",
+    "grpcroutes",
+    "httproutes",
+    "tlsroutes",
+    "ingresses",
+    "configmaps",
+    "secrets",
+    "cronjobs",
+    "jobs",
+    "horizontalpodautoscalers",
+    "verticalpodautoscalers",
+]
 
 
 NAMESPACE_REGEX = re.compile(r"^[a-z0-9]([-a-z0-9]*[a-z0-9])?$")

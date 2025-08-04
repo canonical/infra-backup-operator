@@ -25,32 +25,36 @@ def charm_state() -> testing.State:  # type: ignore[misc]
 
 
 @pytest.mark.parametrize(
-    "cluster_infra_backup_set, msg",
+    "relations, msg",
     [
-        (False, f"Missing relation: [{CLUSTER_INFRA_BACKUP}]"),
+        (
+            [Relation(endpoint=NAMESPACED_INFRA_BACKUP)],
+            f"Missing relation(s): {CLUSTER_INFRA_BACKUP}",
+        ),
+        (
+            [Relation(endpoint=CLUSTER_INFRA_BACKUP)],
+            f"Missing relation(s): {NAMESPACED_INFRA_BACKUP}",
+        ),
+        (
+            [],
+            f"Missing relation(s): {CLUSTER_INFRA_BACKUP}, {NAMESPACED_INFRA_BACKUP}",
+        ),
     ],
     ids=[
         "Not relating cluster-infra-backup ep blocks the charm",
+        "Not relating namespaced-infra-backup ep blocks the charm",
+        "Not relating any ep blocks the charm",
     ],
 )
 def test_assess_cluster_backup_state_block(
-    charm_state: testing.State,
-    mocker: MockerFixture,
-    cluster_infra_backup_set: bool,
+    relations: Relation,
     msg: str,
 ) -> None:
-    mocker.patch(
-        "charm.InfraBackupOperatorCharm._relation_exist",
-        return_value=cluster_infra_backup_set,
-    )
+    testing_state = testing.State(relations=relations)
     ctx = testing.Context(InfraBackupOperatorCharm)
 
-    mock_k8s_utils.has_enough_permission.return_value = permission
-
-    ctx = testing.Context(InfraBackupOperatorCharm)
-    state_out = ctx.run(ctx.on.update_status(), charm_state)
-
-    assert state_out.unit_status == testing.BlockedStatus(expected_msg)
+    state_out = ctx.run(ctx.on.update_status(), testing_state)
+    assert state_out.unit_status == testing.BlockedStatus(msg)
 
 
 def test_assess_cluster_backup_state_active(

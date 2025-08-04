@@ -44,15 +44,10 @@ def test_build_deploy_charm(juju: jubilant.Juju) -> None:
 
 
 @pytest.mark.setup
-def test_relate_and_trust(juju: jubilant.Juju) -> None:
-    logger.info("Setting trust to infra-backup")
-    juju.cli("trust", APP_NAME, "--scope=cluster")
-
-    logger.info("Setting %s relation with Velero", CLUSTER_INFRA_BACKUP)
-    juju.integrate(f"{APP_NAME}:{CLUSTER_INFRA_BACKUP}", f"{VELERO_CHARM}")
-
-    logger.info("Setting %s relation with Velero", NAMESPACED_INFRA_BACKUP)
-    juju.integrate(f"{APP_NAME}:{NAMESPACED_INFRA_BACKUP}", f"{VELERO_CHARM}")
+def test_relate(juju: jubilant.Juju) -> None:
+    for relation in [CLUSTER_INFRA_BACKUP, NAMESPACED_INFRA_BACKUP]:
+        logger.info("Setting %s relation with Velero", relation)
+        juju.integrate(f"{APP_NAME}:{relation}", f"{VELERO_CHARM}")
 
     juju.wait(lambda status: jubilant.all_active(status, APP_NAME))
     logger.info("Infra Backup Operator ready")
@@ -85,3 +80,12 @@ def test_wrong_config_blocks_charm(juju: jubilant.Juju) -> None:
     juju.config(APP_NAME, reset="namespaces")
     with fast_forward(juju):
         juju.wait(lambda status: jubilant.all_active(status, APP_NAME))
+
+
+@pytest.mark.setup
+def test_namespaced_infra_backup_relation(juju: jubilant.Juju) -> None:
+    """Test if the namespaced-infra-backup has the expected content."""
+    wait_for_backup_spec(
+        lambda: get_velero_spec(juju, NAMESPACED_INFRA_BACKUP),
+        get_expected_namespaced_infra_backup_data_bag(),
+    )
