@@ -74,7 +74,7 @@ def get_app_data_bag(unit: str, data: dict[str, Any], endpoint: str) -> dict[str
         logger.warning(relation)
         if relation["related-endpoint"] == endpoint:
             return relation
-    return ValueError(f"No data found for endpoint {endpoint}")
+    raise ValueError(f"No data found for endpoint {endpoint}")
 
 
 def get_expected_infra_backup_data_bag(extra_ns: Optional[list[str]] = None) -> dict:
