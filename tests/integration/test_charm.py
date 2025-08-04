@@ -9,8 +9,6 @@ from typing import Iterator
 import jubilant
 import pytest
 from helpers import (
-    APP_NAME,
-    VELERO_CHARM,
     create_namespace,
     delete_namespace,
     get_expected_infra_backup_data_bag,
@@ -20,7 +18,8 @@ from helpers import (
 )
 from pytest_jubilant import pack
 
-from charm import CLUSTER_INFRA_BACKUP, NAMESPACED_INFRA_BACKUP
+from literals import APP_NAME, VELERO_CHARM
+from src.literals import CLUSTER_INFRA_BACKUP, NAMESPACED_INFRA_BACKUP
 
 logger = logging.getLogger(__name__)
 
@@ -75,16 +74,14 @@ def test_infra_backup_relation_update(juju: jubilant.Juju) -> None:
     """metallb-system ns is not included in the backup if doesn't exist."""
     delete_namespace("metallb-system")
     with fast_forward(juju):
-        wait_for_backup_spec(
-            lambda: get_velero_spec(juju, CLUSTER_INFRA_BACKUP),
-            get_expected_infra_backup_data_bag(),
-        )
+        wait_for_backup_spec(lambda: get_velero_spec(juju), get_expected_infra_backup_data_bag())
 
 
-@pytest.mark.setup
-def test_namespaced_infra_backup_relation(juju: jubilant.Juju) -> None:
-    """Test if the namespaced-infra-backup has the expected content."""
-    wait_for_backup_spec(
-        lambda: get_velero_spec(juju, NAMESPACED_INFRA_BACKUP),
-        get_expected_namespaced_infra_backup_data_bag(),
-    )
+def test_wrong_config_blocks_charm(juju: jubilant.Juju) -> None:
+    juju.config(APP_NAME, {"namespaces": ""})
+    with fast_forward(juju):
+        (lambda status: jubilant.all_blocked(status, APP_NAME),)
+
+    juju.config(APP_NAME, reset="namespaces")
+    with fast_forward(juju):
+        juju.wait(lambda status: jubilant.all_active(status, APP_NAME))
