@@ -57,20 +57,23 @@ def delete_namespace(name: str) -> None:
         raise
 
 
-def get_velero_spec(juju: Juju) -> dict[str, Any]:
+def get_velero_spec(juju: Juju, endpoint: str) -> dict[str, Any]:
     """Get the velero spec in the relation."""
     velero_unit = list(juju.status().apps[VELERO_CHARM].units.keys())[0]
     data = yaml.safe_load(juju.cli("show-unit", velero_unit))
-    app_data_bag = get_app_data_bag(velero_unit, data)
-    return json.loads(app_data_bag["spec"])
+    app_data_bag = get_app_data_bag(velero_unit, data, endpoint)
+    return json.loads(app_data_bag["application-data"]["spec"])
 
 
-def get_app_data_bag(unit: str, data: dict[str, Any]) -> dict[str, Any]:
+def get_app_data_bag(unit: str, data: dict[str, Any], endpoint: str) -> dict[str, Any]:
     """Get the application data bag of Velero Operator where it will configure the backup."""
     relation_data = [v for v in data[unit]["relation-info"] if v["endpoint"] == VELERO_ENDPOINT]
     if len(relation_data) == 0:
         raise ValueError(f"No data found for relation {VELERO_ENDPOINT}")
-    return relation_data[0]["application-data"]
+    for relation in relation_data:
+        if relation["related-endpoint"] == endpoint:
+            return relation
+    raise ValueError(f"No data found for endpoint {endpoint}")
 
 
 def get_expected_infra_backup_data_bag(extra_ns: Optional[list[str]] = None) -> dict:
@@ -85,6 +88,36 @@ def get_expected_infra_backup_data_bag(extra_ns: Optional[list[str]] = None) -> 
         "label_selector": None,
         "ttl": None,
         "include_cluster_resources": True,
+    }
+
+
+def get_expected_namespaced_infra_backup_data_bag() -> dict:
+    return {
+        "include_namespaces": None,
+        "include_resources": [
+            "roles",
+            "rolebindings",
+            "networkpolicies",
+            "resourcequotas",
+            "limitranges",
+            "serviceaccounts",
+            "gateways",
+            "grpcroutes",
+            "httproutes",
+            "tlsroutes",
+            "ingresses",
+            "configmaps",
+            "secrets",
+            "cronjobs",
+            "jobs",
+            "horizontalpodautoscalers",
+            "verticalpodautoscalers",
+        ],
+        "exclude_namespaces": None,
+        "exclude_resources": None,
+        "label_selector": None,
+        "ttl": None,
+        "include_cluster_resources": None,
     }
 
 

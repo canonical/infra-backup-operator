@@ -42,7 +42,7 @@ config:
       default: kube-system, kube-public, metallb-system
       type: string
 
-requires:
+provides:
   cluster-infra-backup:
     interface: velero_backup_config
     limit: 1
