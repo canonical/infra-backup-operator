@@ -69,7 +69,10 @@ def test_infra_backup_relation_update(juju: jubilant.Juju) -> None:
     """metallb-system ns is not included in the backup if doesn't exist."""
     delete_namespace("metallb-system")
     with fast_forward(juju):
-        wait_for_backup_spec(lambda: get_velero_spec(juju), get_expected_infra_backup_data_bag())
+        wait_for_backup_spec(
+            lambda: get_velero_spec(juju, CLUSTER_INFRA_BACKUP),
+            get_expected_infra_backup_data_bag(),
+        )
 
 
 def test_wrong_config_blocks_charm(juju: jubilant.Juju) -> None:

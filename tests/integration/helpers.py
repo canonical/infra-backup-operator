@@ -71,7 +71,6 @@ def get_app_data_bag(unit: str, data: dict[str, Any], endpoint: str) -> dict[str
     if len(relation_data) == 0:
         raise ValueError(f"No data found for relation {VELERO_ENDPOINT}")
     for relation in relation_data:
-        logger.warning(relation)
         if relation["related-endpoint"] == endpoint:
             return relation
     raise ValueError(f"No data found for endpoint {endpoint}")
@@ -118,7 +117,7 @@ def get_expected_namespaced_infra_backup_data_bag() -> dict:
         "exclude_resources": None,
         "label_selector": None,
         "ttl": None,
-        "include_cluster_resources": False,
+        "include_cluster_resources": None,
     }
 
 
