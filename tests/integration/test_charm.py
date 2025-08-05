@@ -9,7 +9,9 @@ from typing import Iterator
 import jubilant
 import pytest
 from helpers import (
+    create_clusterrole,
     create_namespace,
+    create_role,
     delete_namespace,
     get_expected_infra_backup_data_bag,
     get_expected_namespaced_infra_backup_data_bag,
@@ -18,7 +20,7 @@ from helpers import (
 )
 from pytest_jubilant import pack
 
-from literals import APP_NAME, VELERO_CHARM
+from literals import APP_NAME, S3_INTEGRATOR, VELERO_CHARM
 from src.literals import CLUSTER_INFRA_BACKUP, NAMESPACED_INFRA_BACKUP
 
 logger = logging.getLogger(__name__)
@@ -40,20 +42,32 @@ def test_build_deploy_charm(juju: jubilant.Juju) -> None:
     charm_root = Path(__file__).resolve().parents[2]
     juju.deploy(pack(charm_root).resolve())
     juju.deploy(VELERO_CHARM, trust=True, channel="edge")
-    juju.wait(jubilant.all_blocked)
+    juju.deploy(S3_INTEGRATOR)
+    juju.wait(jubilant.all_blocked, timeout=240)
 
 
 @pytest.mark.setup
 def test_relate(juju: jubilant.Juju) -> None:
     for relation in [CLUSTER_INFRA_BACKUP, NAMESPACED_INFRA_BACKUP]:
         logger.info("Setting %s relation with Velero", relation)
-        juju.integrate(f"{APP_NAME}:{relation}", f"{VELERO_CHARM}")
+        juju.integrate(f"{APP_NAME}:{relation}", VELERO_CHARM)
+
+    juju.integrate(S3_INTEGRATOR, VELERO_CHARM)
 
     juju.wait(lambda status: jubilant.all_active(status, APP_NAME))
     logger.info("Infra Backup Operator ready")
 
 
 @pytest.mark.setup
+def test_configure_s3_integrator(juju: jubilant.Juju, s3_cloud_credentials, s3_cloud_configs):
+    """Configure the integrator charm with the credentials and configs."""
+    logger.info("Setting credentials for %s", S3_INTEGRATOR)
+    juju.config(S3_INTEGRATOR, s3_cloud_configs)
+    s3_unit = list(juju.status().apps[S3_INTEGRATOR].units.keys())[0]
+    juju.run(s3_unit, "sync-s3-credentials", s3_cloud_credentials)
+    juju.wait(lambda status: jubilant.all_active(status, S3_INTEGRATOR))
+
+
 def test_infra_backup_relation(juju: jubilant.Juju) -> None:
     """Simulate enabling the load-balancer l2-mode and the creation of the metallb-system ns."""
     create_namespace("metallb-system")
@@ -64,7 +78,6 @@ def test_infra_backup_relation(juju: jubilant.Juju) -> None:
         )
 
 
-@pytest.mark.setup
 def test_infra_backup_relation_update(juju: jubilant.Juju) -> None:
     """metallb-system ns is not included in the backup if doesn't exist."""
     delete_namespace("metallb-system")
@@ -85,10 +98,32 @@ def test_wrong_config_blocks_charm(juju: jubilant.Juju) -> None:
         juju.wait(lambda status: jubilant.all_active(status, APP_NAME))
 
 
-@pytest.mark.setup
 def test_namespaced_infra_backup_relation(juju: jubilant.Juju) -> None:
     """Test if the namespaced-infra-backup has the expected content."""
     wait_for_backup_spec(
         lambda: get_velero_spec(juju, NAMESPACED_INFRA_BACKUP),
         get_expected_namespaced_infra_backup_data_bag(),
     )
+
+
+def test_create_backup(juju: jubilant.Juju):
+    """Test create-backup action of the velero-operator charm."""
+    logger.info("Creating a custom Role in the default namespace")
+    create_role("pod-reader")
+
+    logger.info("Creating a custom ClusterRole")
+    create_clusterrole("pod-reader")
+
+    velero_unit = list(juju.status().apps[VELERO_CHARM].units.keys())[0]
+
+    logger.info("Running the create-backup action for cluster-infra-backup")
+    task_cluster = juju.run(
+        velero_unit, "create-backup", {"target": f"{APP_NAME}:{CLUSTER_INFRA_BACKUP}"}
+    )
+    logger.info(task_cluster.results)
+
+    logger.info("Running the create-backup action for cluster-infra-backup")
+    task_namespaced = juju.run(
+        velero_unit, "create-backup", {"target": f"{APP_NAME}:{NAMESPACED_INFRA_BACKUP}"}
+    )
+    logger.info(task_namespaced.results)

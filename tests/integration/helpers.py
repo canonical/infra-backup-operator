@@ -17,12 +17,13 @@ from literals import VELERO_CHARM, VELERO_ENDPOINT
 
 logger = logging.getLogger(__name__)
 
+config.load_kube_config()
+v1 = client.CoreV1Api()
+rbac_v1 = client.RbacAuthorizationV1Api()
+
 
 def create_namespace(name: str) -> None:
     """Create the namespace only if it doesn't already exist."""
-    config.load_kube_config()
-    v1 = client.CoreV1Api()
-
     try:
         v1.read_namespace(name=name)
         logger.info(f"Namespace '{name}' already exists. Skipping the creation.")
@@ -37,9 +38,6 @@ def create_namespace(name: str) -> None:
 
 def delete_namespace(name: str) -> None:
     """Delete the namespace only if exists."""
-    config.load_kube_config()
-    v1 = client.CoreV1Api()
-
     try:
         v1.read_namespace(name=name)
     except ApiException as e:
@@ -55,6 +53,32 @@ def delete_namespace(name: str) -> None:
     except ApiException as e:
         logger.error(f"Failed to delete namespace '{name}': {e}")
         raise
+
+
+def create_role(name: str, namespace: str = "default") -> None:
+    """Create a Role."""
+    role = client.V1Role(
+        metadata=client.V1ObjectMeta(name=name, namespace=namespace),
+        rules=[
+            client.V1PolicyRule(
+                api_groups=[""], resources=["pods"], verbs=["get", "watch", "list"]
+            )
+        ],
+    )
+    rbac_v1.create_namespaced_role(namespace=namespace, body=role)
+
+
+def create_clusterrole(name: str) -> None:
+    """Create a ClusterRole."""
+    cluster_role = client.V1ClusterRole(
+        metadata=client.V1ObjectMeta(name=name),
+        rules=[
+            client.V1PolicyRule(
+                api_groups=[""], resources=["pods"], verbs=["get", "list", "watch"]
+            )
+        ],
+    )
+    rbac_v1.create_cluster_role(body=cluster_role)
 
 
 def get_velero_spec(juju: Juju, endpoint: str) -> dict[str, Any]:
