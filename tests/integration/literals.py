@@ -11,3 +11,5 @@ APP_NAME = CHARM_METADATA["name"]
 VELERO_CHARM = "velero-operator"
 VELERO_ENDPOINT = "velero-backups"
 S3_INTEGRATOR = "s3-integrator"
+ROLES_RESOURCE = "pod-reader"
+CONTROLLER_K8s = "concierge-k8s"

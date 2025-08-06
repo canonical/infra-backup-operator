@@ -11,6 +11,7 @@ import uuid
 import boto3
 import botocore.exceptions
 import pytest
+from kubernetes import client, config
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_fixed
 
 MICROCEPH_BUCKET = "testbucket"
@@ -20,6 +21,9 @@ K8S_TEST_PVC_RESOURCE_NAME = "test-pvc"
 K8S_TEST_PVC_FILE_PATH = "test-file"
 
 logger = logging.getLogger(__name__)
+
+config.load_kube_config()
+rbac_v1 = client.RbacAuthorizationV1Api()
 
 
 @dataclasses.dataclass(frozen=True)

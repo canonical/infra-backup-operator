@@ -3,24 +3,28 @@
 # See LICENSE file for licensing details.
 import logging
 from contextlib import contextmanager
+from datetime import datetime
 from pathlib import Path
 from typing import Iterator
 
 import jubilant
 import pytest
 from helpers import (
-    create_clusterrole,
     create_namespace,
-    create_role,
+    create_pod_reader_cluster_role,
+    create_pod_reader_role,
     delete_namespace,
+    delete_pod_reader_cluster_role,
+    delete_pod_reader_role,
     get_expected_infra_backup_data_bag,
     get_expected_namespaced_infra_backup_data_bag,
     get_velero_spec,
+    list_roles_clusterroles,
     wait_for_backup_spec,
 )
 from pytest_jubilant import pack
 
-from literals import APP_NAME, S3_INTEGRATOR, VELERO_CHARM
+from literals import APP_NAME, ROLES_RESOURCE, S3_INTEGRATOR, VELERO_CHARM
 from src.literals import CLUSTER_INFRA_BACKUP, NAMESPACED_INFRA_BACKUP
 
 logger = logging.getLogger(__name__)
@@ -108,11 +112,8 @@ def test_namespaced_infra_backup_relation(juju: jubilant.Juju) -> None:
 
 def test_create_backup(juju: jubilant.Juju):
     """Test create-backup action of the velero-operator charm."""
-    logger.info("Creating a custom Role in the default namespace")
-    create_role("pod-reader")
-
-    logger.info("Creating a custom ClusterRole")
-    create_clusterrole("pod-reader")
+    create_pod_reader_role()
+    create_pod_reader_cluster_role()
 
     velero_unit = list(juju.status().apps[VELERO_CHARM].units.keys())[0]
 
@@ -120,10 +121,40 @@ def test_create_backup(juju: jubilant.Juju):
     task_cluster = juju.run(
         velero_unit, "create-backup", {"target": f"{APP_NAME}:{CLUSTER_INFRA_BACKUP}"}
     )
-    logger.info(task_cluster.results)
+    assert task_cluster.results["status"] == "success"
 
     logger.info("Running the create-backup action for cluster-infra-backup")
     task_namespaced = juju.run(
         velero_unit, "create-backup", {"target": f"{APP_NAME}:{NAMESPACED_INFRA_BACKUP}"}
     )
-    logger.info(task_namespaced.results)
+    assert task_namespaced.results["status"] == "success"
+
+
+def test_restore(
+    juju: jubilant.Juju,
+):
+    delete_pod_reader_role()
+    delete_pod_reader_cluster_role()
+    before_backup_roles_clusterroles = list_roles_clusterroles()
+    assert ROLES_RESOURCE not in before_backup_roles_clusterroles["roles"]
+    assert ROLES_RESOURCE not in before_backup_roles_clusterroles["cluster_roles"]
+
+    velero_unit = list(juju.status().apps[VELERO_CHARM].units.keys())[0]
+    task = juju.run(velero_unit, "list-backups")
+    backups = task.results["backups"]
+    backup_uids = [
+        uid
+        for uid, _ in sorted(
+            backups.items(),
+            key=lambda item: datetime.strptime(item[1]["start-timestamp"], "%Y-%m-%dT%H:%M:%SZ"),
+        )
+    ]
+
+    logger.info("Creating restores for each backup")
+    for backup_uid in backup_uids:
+        juju.run(velero_unit, "restore", {"backup-uid": backup_uid})
+
+    logger.info("Verifying the restore")
+    after_backup_roles_clusterroles = list_roles_clusterroles()
+    assert ROLES_RESOURCE in after_backup_roles_clusterroles["roles"]
+    assert ROLES_RESOURCE in after_backup_roles_clusterroles["cluster_roles"]
