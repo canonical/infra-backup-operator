@@ -65,7 +65,7 @@ def create_microceph_bucket(
 
 
 @pytest.fixture(scope="session")
-def s3_connection_info() -> S3ConnectionInfo:
+def s3_connection_info() -> S3ConnectionInfo:  # type: ignore[misc]
     """Return S3 connection info based on environment."""
     logger.info("Setting up microceph")
 

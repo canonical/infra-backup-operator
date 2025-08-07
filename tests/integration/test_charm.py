@@ -43,6 +43,7 @@ def fast_forward(juju: jubilant.Juju) -> Iterator[None]:
 
 @pytest.mark.setup
 def test_build_deploy_charm(juju: jubilant.Juju) -> None:
+    """Build the infra-backup-operator and deploy velero and s3-integrator."""
     charm_root = Path(__file__).resolve().parents[2]
     juju.deploy(pack(charm_root).resolve())
     juju.deploy(VELERO_CHARM, trust=True, channel="edge")
@@ -52,6 +53,7 @@ def test_build_deploy_charm(juju: jubilant.Juju) -> None:
 
 @pytest.mark.setup
 def test_relate(juju: jubilant.Juju) -> None:
+    """Set the necessary relations."""
     for relation in [CLUSTER_INFRA_BACKUP, NAMESPACED_INFRA_BACKUP]:
         logger.info("Setting %s relation with Velero", relation)
         juju.integrate(f"{APP_NAME}:{relation}", VELERO_CHARM)
@@ -63,8 +65,10 @@ def test_relate(juju: jubilant.Juju) -> None:
 
 
 @pytest.mark.setup
-def test_configure_s3_integrator(juju: jubilant.Juju, s3_cloud_credentials, s3_cloud_configs):
-    """Configure the integrator charm with the credentials and configs."""
+def test_configure_s3_integrator(
+    juju: jubilant.Juju, s3_cloud_credentials: dict[str, str], s3_cloud_configs: dict[str, str]
+) -> None:
+    """Configure the integrator charm with credentials and configs for s3 compatible bucket."""
     logger.info("Setting credentials for %s", S3_INTEGRATOR)
     juju.config(S3_INTEGRATOR, s3_cloud_configs)
     s3_unit = list(juju.status().apps[S3_INTEGRATOR].units.keys())[0]
@@ -93,6 +97,7 @@ def test_infra_backup_relation_update(juju: jubilant.Juju) -> None:
 
 
 def test_wrong_config_blocks_charm(juju: jubilant.Juju) -> None:
+    """An invalid namespace blocks the charm to warn the user."""
     juju.config(APP_NAME, {"namespaces": ""})
     with fast_forward(juju):
         (lambda status: jubilant.all_blocked(status, APP_NAME),)
@@ -110,9 +115,11 @@ def test_namespaced_infra_backup_relation(juju: jubilant.Juju) -> None:
     )
 
 
-def test_create_backup(juju: jubilant.Juju):
+def test_create_backup(juju: jubilant.Juju) -> None:
     """Test create-backup action of the velero-operator charm."""
+    # role makes part of the namespace-infra-backup
     create_pod_reader_role()
+    # cluster role makes part of the cluster-infra-backup
     create_pod_reader_cluster_role()
 
     velero_unit = list(juju.status().apps[VELERO_CHARM].units.keys())[0]
@@ -130,9 +137,8 @@ def test_create_backup(juju: jubilant.Juju):
     assert task_namespaced.results["status"] == "success"
 
 
-def test_restore(
-    juju: jubilant.Juju,
-):
+def test_restore(juju: jubilant.Juju) -> None:
+    """Simulate a disaster by removing resources and then restore and ensure that is back."""
     delete_pod_reader_role()
     delete_pod_reader_cluster_role()
     before_backup_roles_clusterroles = list_roles_clusterroles()
