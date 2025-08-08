@@ -42,6 +42,16 @@ config:
       default: kube-system, kube-public, metallb-system
       type: string
 
+links:
+  issues:
+  - https://github.com/canonical/infra-backup-operator/issues
+  source:
+  - https://github.com/canonical/infra-backup-operator
+  website:
+  - https://github.com/canonical/infra-backup-operator
+  - https://charmhub.io/infra-backup-operator
+
+
 provides:
   cluster-infra-backup:
     interface: velero_backup_config
@@ -51,3 +61,8 @@ provides:
     interface: velero_backup_config
     limit: 1
     optional: true
+
+terms:
+  - backup
+  - infra
+  - velero
