@@ -13,16 +13,17 @@ from kubernetes import client, config
 from kubernetes.client.exceptions import ApiException
 from tenacity import retry, retry_if_exception_type, stop_after_delay, wait_fixed
 
-from literals import VELERO_CHARM, VELERO_ENDPOINT
+from literals import ROLES_RESOURCE, VELERO_CHARM, VELERO_ENDPOINT
 
 logger = logging.getLogger(__name__)
+
+config.load_kube_config()
+v1 = client.CoreV1Api()
+rbac_v1 = client.RbacAuthorizationV1Api()
 
 
 def create_namespace(name: str) -> None:
     """Create the namespace only if it doesn't already exist."""
-    config.load_kube_config()
-    v1 = client.CoreV1Api()
-
     try:
         v1.read_namespace(name=name)
         logger.info(f"Namespace '{name}' already exists. Skipping the creation.")
@@ -37,9 +38,6 @@ def create_namespace(name: str) -> None:
 
 def delete_namespace(name: str) -> None:
     """Delete the namespace only if exists."""
-    config.load_kube_config()
-    v1 = client.CoreV1Api()
-
     try:
         v1.read_namespace(name=name)
     except ApiException as e:
@@ -55,6 +53,18 @@ def delete_namespace(name: str) -> None:
     except ApiException as e:
         logger.error(f"Failed to delete namespace '{name}': {e}")
         raise
+
+
+def list_roles_clusterroles(namespace: str = "default") -> dict[str, set]:
+    config.load_kube_config()
+    rbac_v1 = client.RbacAuthorizationV1Api()
+    roles = {
+        role.metadata.name for role in rbac_v1.list_namespaced_role(namespace=namespace).items
+    }
+    cluster_roles = {
+        cluster_role.metadata.name for cluster_role in rbac_v1.list_cluster_role().items
+    }
+    return {"roles": roles, "cluster_roles": cluster_roles}
 
 
 def get_velero_spec(juju: Juju, endpoint: str) -> dict[str, Any]:
@@ -136,3 +146,39 @@ def wait_for_backup_spec(func: Callable, expected_spec: dict) -> None:
             f"Actual:\n{pprint.pformat(velero_spec)}\n\n"
             f"Expected:\n{pprint.pformat(expected_spec)}"
         )
+
+
+def create_pod_reader_role() -> None:
+    logger.info("Creating role: %s", ROLES_RESOURCE)
+    role = client.V1Role(
+        metadata=client.V1ObjectMeta(name=ROLES_RESOURCE),
+        rules=[
+            client.V1PolicyRule(
+                api_groups=[""], resources=["pods"], verbs=["get", "watch", "list"]
+            )
+        ],
+    )
+    rbac_v1.create_namespaced_role(body=role, namespace="default")
+
+
+def create_pod_reader_cluster_role() -> None:
+    logger.info("Creating cluster role: %s", ROLES_RESOURCE)
+    cluster_role = client.V1ClusterRole(
+        metadata=client.V1ObjectMeta(name=ROLES_RESOURCE),
+        rules=[
+            client.V1PolicyRule(
+                api_groups=[""], resources=["pods"], verbs=["get", "list", "watch"]
+            )
+        ],
+    )
+    rbac_v1.create_cluster_role(body=cluster_role)
+
+
+def delete_pod_reader_role() -> None:
+    logger.info("Deleting role: %s", ROLES_RESOURCE)
+    rbac_v1.delete_namespaced_role(name=ROLES_RESOURCE, namespace="default")
+
+
+def delete_pod_reader_cluster_role() -> None:
+    logger.info("Deleting cluster role: %s", ROLES_RESOURCE)
+    rbac_v1.delete_cluster_role(name=ROLES_RESOURCE)
