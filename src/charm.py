@@ -73,8 +73,11 @@ class InfraBackupOperatorCharm(ops.CharmBase):
         Persistent Volumes are not backed up because it is workload related and applications
         should be responsible for configuring the backup.
 
-        Pods are ephemeral and are automatically recreated by higher-level controllers
-        e.g: Deployments, StatefulSets, and DaemonSets.
+        Pods are not part of the backup because they ephemeral and should be controlled by a
+        higher-level such as Deployments, StatefulSets, and DaemonSets.
+
+        RESOURCES_BACKUP are ignored to avoid duplication of resources with the
+        namespaced-infra-backup endpoint.
         """
         try:
             cluster_namespaces = self.k8s_utils.get_namespaces()
@@ -96,7 +99,7 @@ class InfraBackupOperatorCharm(ops.CharmBase):
             relation_name=CLUSTER_INFRA_BACKUP,
             spec=VeleroBackupSpec(
                 include_namespaces=backup_namespaces,
-                exclude_resources=["persistentvolumes", "pods"],
+                exclude_resources= RESOURCES_BACKUP + ["persistentvolumes", "pods"],
                 include_cluster_resources=True,
             ),
             refresh_event=[self.on.update_status, self.on.config_changed],
