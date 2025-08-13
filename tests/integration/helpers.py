@@ -13,8 +13,8 @@ from kubernetes import client, config
 from kubernetes.client.exceptions import ApiException
 from tenacity import retry, retry_if_exception_type, stop_after_delay, wait_fixed
 
-from src.literals import RESOURCES_BACKUP
 from literals import ROLES_RESOURCE, VELERO_CHARM, VELERO_ENDPOINT
+from src.literals import RESOURCES_BACKUP
 
 logger = logging.getLogger(__name__)
 

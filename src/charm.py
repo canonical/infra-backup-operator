@@ -99,7 +99,7 @@ class InfraBackupOperatorCharm(ops.CharmBase):
             relation_name=CLUSTER_INFRA_BACKUP,
             spec=VeleroBackupSpec(
                 include_namespaces=backup_namespaces,
-                exclude_resources= RESOURCES_BACKUP + ["persistentvolumes", "pods"],
+                exclude_resources=RESOURCES_BACKUP + ["persistentvolumes", "pods"],
                 include_cluster_resources=True,
             ),
             refresh_event=[self.on.update_status, self.on.config_changed],
