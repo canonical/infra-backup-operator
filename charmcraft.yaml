@@ -43,6 +43,7 @@ config:
       type: string
 
 links:
+  documentation: https://discourse.charmhub.io/t/infra-backup-operator-documentation/18392
   issues:
   - https://github.com/canonical/infra-backup-operator/issues
   source:
