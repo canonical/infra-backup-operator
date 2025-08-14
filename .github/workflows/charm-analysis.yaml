@@ -1,0 +1,57 @@
+name: Charm Analysis
+# Unit testing, Style Linting, Type Linting, Static Analysis, and Spelling
+
+on:
+  pull_request:
+
+jobs:
+  unit-tests:
+    uses: canonical/operator-workflows/.github/workflows/test.yaml@main
+    secrets: inherit
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version:
+        - '3.12'
+    with:
+      self-hosted-runner:  false
+      with-uv: true
+      python-version: ${{ matrix.python-version }}
+
+  integration:
+    name: Integration Test (build and deploy)
+    runs-on: ubuntu-24.04
+
+    steps:
+    - name: Check out repo
+      uses: actions/checkout@v4
+      with:
+        submodules: true
+
+    - name: Set up Python 3.12
+      uses: actions/setup-python@v5
+      with:
+        python-version: 3.12
+
+    - name: Set up charmcraft
+      uses: canonical/craft-actions/charmcraft/setup@main
+      with:
+          channel: "3.x/stable"
+
+    - name: Setup operator environment
+      run: |
+        # Use https://github.com/canonical/concierge
+        # No currently stable action to set up Canonical Kubernetes
+        # https://github.com/canonical/concierge/issues/51
+        sudo apt-get remove -y docker-ce docker-ce-cli containerd.io
+        sudo rm -rf /run/containerd
+
+        python -m pip install --upgrade pip
+        sudo snap install astral-uv --classic
+        uv tool install tox --with tox-uv
+        uv tool update-shell
+
+        sudo snap install --classic concierge
+        sudo concierge prepare -p k8s
+    - name: Run integration tests
+      run: tox -vve integration

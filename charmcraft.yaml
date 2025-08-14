@@ -1,0 +1,69 @@
+# Copyright 2025 Canonical Ltd.
+# See LICENSE file for licensing details.
+
+name: infra-backup-operator
+type: charm
+title: Infra Backup Operator
+
+summary: Client charm to set backup configuration of non-workload related resources by configuring
+  the velero-operator.
+
+description: |
+  This charm configures the velero-operator to back up non-workload Kubernetes resources through
+  charm relations. It focuses on preserving critical infrastructure components such as
+  cluster-scoped resources, system namespaces (like kube-system and kube-public),
+  RBAC configurations, and other platform-level data.
+
+platforms:
+  ubuntu@24.04:amd64:
+
+assumes:
+  - juju >= 3.1
+  - k8s-api
+
+parts:
+  charm:
+    source: .
+    plugin: uv
+    build-packages:
+      - git
+      - libffi-dev
+      - libssl-dev
+      - pkg-config
+    build-snaps:
+      - astral-uv
+
+config:
+  options:
+    namespaces:
+      description: |
+          Comma separated values of namespaces to backup for the infrastructure. If the namespace,
+          doesn't exist in the cluster it will be ignored to backup.
+      default: kube-system, kube-public, metallb-system
+      type: string
+
+links:
+  documentation: https://discourse.charmhub.io/t/infra-backup-operator-documentation/18392
+  issues:
+  - https://github.com/canonical/infra-backup-operator/issues
+  source:
+  - https://github.com/canonical/infra-backup-operator
+  website:
+  - https://github.com/canonical/infra-backup-operator
+  - https://charmhub.io/infra-backup-operator
+
+
+provides:
+  cluster-infra-backup:
+    interface: velero_backup_config
+    limit: 1
+    optional: true
+  namespaced-infra-backup:
+    interface: velero_backup_config
+    limit: 1
+    optional: true
+
+terms:
+  - backup
+  - infra
+  - velero
