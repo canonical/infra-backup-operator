@@ -14,6 +14,7 @@ from kubernetes.client.exceptions import ApiException
 from tenacity import retry, retry_if_exception_type, stop_after_delay, wait_fixed
 
 from literals import ROLES_RESOURCE, VELERO_CHARM, VELERO_ENDPOINT
+from src.literals import RESOURCES_BACKUP
 
 logger = logging.getLogger(__name__)
 
@@ -94,7 +95,7 @@ def get_expected_infra_backup_data_bag(extra_ns: Optional[list[str]] = None) -> 
         "include_namespaces": ns,
         "include_resources": None,
         "exclude_namespaces": None,
-        "exclude_resources": ["persistentvolumes", "pods"],
+        "exclude_resources": RESOURCES_BACKUP + ["persistentvolumes", "pods"],
         "label_selector": None,
         "ttl": None,
         "include_cluster_resources": True,
@@ -104,25 +105,7 @@ def get_expected_infra_backup_data_bag(extra_ns: Optional[list[str]] = None) -> 
 def get_expected_namespaced_infra_backup_data_bag() -> dict:
     return {
         "include_namespaces": None,
-        "include_resources": [
-            "roles",
-            "rolebindings",
-            "networkpolicies",
-            "resourcequotas",
-            "limitranges",
-            "serviceaccounts",
-            "gateways",
-            "grpcroutes",
-            "httproutes",
-            "tlsroutes",
-            "ingresses",
-            "configmaps",
-            "secrets",
-            "cronjobs",
-            "jobs",
-            "horizontalpodautoscalers",
-            "verticalpodautoscalers",
-        ],
+        "include_resources": RESOURCES_BACKUP,
         "exclude_namespaces": None,
         "exclude_resources": None,
         "label_selector": None,

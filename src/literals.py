@@ -25,6 +25,7 @@ RESOURCES_BACKUP = [
     "jobs",
     "horizontalpodautoscalers",
     "verticalpodautoscalers",
+    "ciliumnetworkpolicies",
 ]
 
 

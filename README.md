@@ -12,7 +12,7 @@ This charm defines the backup of:
 backed up, **except for PersistentVolumes (PVs)**, which are considered workload-related rather
 than part of the core infrastructure.
 
-* Namespaced resources in:
+* Namespaced resources in `namespaces` charm config. By default is included the following namespaces:
     * kube-system — includes configurations for critical components such as CoreDNS, Cilium, and k8s-gateway.
 
     * kube-public — typically contains publicly accessible, cluster-wide information
@@ -25,6 +25,7 @@ than part of the core infrastructure.
 * The following resources on **all** namespaces:
     * Role, RoleBinding
     * NetworkPolicy
+    * CiliumNetworkPolicies
     * ResourceQuota
     * LimitRange
     * ServiceAccount
