@@ -167,7 +167,7 @@ tox run -e unit,coverage-report
 
 ### Integration Testing
 
-This repo uses `pytest` and `pytest-operator` to execute functional/integration tests against the charm files. The integration tests are defined in `./tests/integration`. The charms are deployed according to the bundle defined in `./tests/integration/test-bundle.yaml`.
+This repo uses `pytest-jubilant` and `Jubilant` to execute functional/integration tests against the charm files. The integration tests are defined in `./tests/integration`. The charms are deployed according to the bundle defined in `./tests/integration/test-bundle.yaml`.
 
 It's required you have a bootstrapped [juju machine controller](https://juju.is/docs/juju/manage-controllers) available. Usually, one prefers to have a controller available from their development machine to a supported cloud like `lxd` or `aws`. You can test if the controller is available by running:
 
