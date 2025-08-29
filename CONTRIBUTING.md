@@ -167,17 +167,17 @@ tox run -e unit,coverage-report
 
 ### Integration Testing
 
-This repo uses `pytest-jubilant` and `Jubilant` to execute functional/integration tests against the charm files. The integration tests are defined in `./tests/integration`. The charms are deployed according to the bundle defined in `./tests/integration/test-bundle.yaml`.
+This repo uses `pytest-jubilant` and `Jubilant` to execute functional/integration tests against the charm files. The integration tests are defined in `./tests/integration`.
 
-It's required you have a bootstrapped [juju machine controller](https://juju.is/docs/juju/manage-controllers) available. Usually, one prefers to have a controller available from their development machine to a supported cloud like `lxd` or `aws`. You can test if the controller is available by running:
+It's required you have a bootstrapped [juju k8s controller](https://juju.is/docs/juju/manage-controllers) available. An easy way to achieve this is by using the
+[concierge](https://github.com/canonical/concierge) snap.
+You can test if the controller is available by running:
 
 ```shell
 juju status -m controller
 ```
 
-You should see that there's a controller running on a cloud substrage like `aws` or `lxd` or some other cloud substrate that supports machines -- not a kubernetes substrate.
-
-`pytest-operator` will create a new juju model and deploy a cluster into each model for every test module (eg `test_something.py`). When the tests complete (successful or not), `pytest-operator` will clean up the models for you.
+`pytest-jubilant` will create a new juju model and deploy all the necessaty charms. When the tests complete (successful or not), `pytest-jubilant` will clean up the models for you.
 
 Running the integration tests are as easy as:
 
@@ -201,6 +201,6 @@ tox run -e integration-tests -- --positional --arguments
 `--keep-models`: Doesn't delete the model once the integration tests are finished
 `--model`: Rerun the test with a given model name -- if it already exist, the integration tests will use it
 `-k regex-pattern`: run a specific set of matching tests names ignore other passing tests
-Remember that cloud costs could be incurred for every machine -- so be sure to clean up your models on clouds if you instruct pytest-operator to not clean up the models.
+Remember that cloud costs could be incurred for every machine -- so be sure to clean up your models on clouds if you instruct pytest-jubilant to not clean up the models.
 
-See [pytest-operator](https://github.com/charmed-kubernetes/pytest-operator/blob/main/docs/reference.md) and [pytest](https://docs.pytest.org/en/7.1.x/contents.html) for more documentation on `pytest` arguments
+See [pytest-jubilant](https://github.com/canonical/pytest-jubilant) and [pytest](https://docs.pytest.org/en/7.1.x/contents.html) for more documentation on `pytest` arguments
