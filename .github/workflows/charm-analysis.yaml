@@ -6,7 +6,7 @@ on:
 
 jobs:
   unit-tests:
-    uses: canonical/operator-workflows/.github/workflows/test.yaml@main
+    uses: canonical/operator-workflows/.github/workflows/test.yaml@27f280ed34b54bd9f65451dc966bfde701e84b62 # main
     secrets: inherit
     strategy:
       fail-fast: false
@@ -24,17 +24,17 @@ jobs:
 
     steps:
     - name: Check out repo
-      uses: actions/checkout@v4
+      uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
       with:
         submodules: true
 
     - name: Set up Python 3.12
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
       with:
         python-version: 3.12
 
     - name: Set up charmcraft
-      uses: canonical/craft-actions/charmcraft/setup@main
+      uses: canonical/craft-actions/charmcraft/setup@9f9af048b247978a330f4e7cce3a3fcb8ca267b9 # main
       with:
           channel: "3.x/stable"
 
