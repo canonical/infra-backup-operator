@@ -1,0 +1,55 @@
+name: TICS quality scan
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  TICS:
+    runs-on: [self-hosted, linux, amd64, tiobe, jammy]
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout the Repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{matrix.branch}}
+          fetch-depth: 0
+
+      - name: Install Dependencies
+        run: |
+          sudo snap install astral-uv --classic
+          uv tool install tox --with tox-uv
+
+      - name: Install Python Tools
+        run: |
+          uv sync
+          source .venv/bin/activate
+          uv pip install pylint flake8
+          echo "PATH=$PATH" >> "$GITHUB_ENV"
+
+      - name: Run tox tests to create coverage.xml
+        run: |
+          tox -e unit,coverage-xml
+          # TiCS expects the report to be under a "$(pwd)/cover" directory.
+          mkdir -p "$GITHUB_WORKSPACE/cover"
+          GENERATED_COVERAGE_XML="$GITHUB_WORKSPACE/coverage.xml"
+          mv "$GENERATED_COVERAGE_XML" cover/coverage.xml
+
+      - name: Run TICS
+        uses: tiobe/tics-github-action@v3
+        with:
+          mode: qserver
+          project: ${{ github.event.repository.name }}
+          viewerUrl: https://canonical.tiobe.com/tiobeweb/TICS/api/cfg?name=default
+          ticsAuthToken: ${{ secrets.TICSAUTHTOKEN }}
+          installTics: true
